@@ -2,7 +2,7 @@
 
 > **Status:** Pre-development planning document  
 > **Scope:** Card Storage Inventory module (Decks In / Decks Out)  
-> **Version:** 1.0
+> **Version:** 1.1
 
 ---
 
@@ -671,31 +671,238 @@ Route namespacing (`/cards/*`), table name prefixes (`card_types`, `card_*`), an
 
 ## 10. Open Questions
 
-The following questions should be answered by the casino operations team before coding begins:
+The following items must be answered by the casino operations team before development begins.
 
-1. **Boxes per case:** What is the exact number of Baccarat boxes per case and Single Deck boxes per case for your primary vendor(s)? (These become defaults in the admin panel but should be verified.)
+---
 
-2. **Colors in use:** Which card colors are currently in use at this property, and do they differ between Baccarat and Single Deck cards?
+### 1. Packaging Defaults
 
-3. **Employee validation:** Should employee IDs be validated against a pre-loaded employee list, or is free-text entry with optional lookup acceptable for V1?
+Confirm the default packaging for each card type.
 
-4. **Signature legal standing:** Will the captured on-screen signatures be used as legally binding gaming compliance records? If so, a signature audit trail (timestamp, device ID, IP) may be required beyond what is described here.
+- **Baccarat:** How many 8-deck boxes arrive per case?
+- **Single Deck:** How many 12-deck boxes arrive per case?
 
-5. **PDF storage location:** Where should PDFs be saved? (Local folder on the tablet, network share, or both?) Who is responsible for backing up the PDF folder?
+These values will become the system defaults and remain fully configurable through the Admin panel after deployment.
 
-6. **Admin access control:** Should admin panel access require a PIN, a separate admin employee login, or is physical access to the tablet sufficient?
+---
 
-7. **Partial boxes:** Are there any current or planned scenarios where cards leave storage in quantities smaller than a full box? (Partial box support is designed but disabled by default.)
+### 2. Card Inventory Configuration
 
-8. **Multiple properties / tablets:** Will this app run on a single tablet per property, or on multiple tablets at the same property that need to share inventory data? (Multi-tablet sync is out of scope for V1 but would require a local server or cloud backend.)
+What card types and colors are currently in use at this property?
 
-9. **Correction frequency:** How often do corrections occur in practice? This informs how prominent the "Correct" button should be in the UI.
+Common examples:
 
-10. **Print vs. digital PDF:** Should the generated PDF always be printed immediately, sent to a print queue, or stored digitally only? Is there a network printer available at the card storage station?
+- Single Deck – Blue
+- Single Deck – Red
+- Single Deck – Green
+- Baccarat – Blue
+- Baccarat – Red
 
-11. **Audit / compliance review:** Will an external auditor or gaming commission ever need access to the transaction log and PDFs? If so, the export format (CSV, PDF report, or direct database access) needs to be agreed upon.
+The system supports adding new card types and colors through the Admin panel at any time, without requiring a code change.
 
-12. **Data retention:** How long must records be kept? Is there a regulatory retention period? Should records older than N years be archived or purged?
+---
+
+### 3. Employee Identification
+
+How should employees be identified when signing a transaction?
+
+Options (select one):
+
+| Option | Description |
+|--------|-------------|
+| Employee ID only | Clerk types their badge/ID number; no name lookup |
+| Employee lookup | Clerk selects their name from a maintained employee list |
+| ID with automatic name lookup | Clerk types ID; name populates automatically from the employee list |
+| Free-text entry | Clerk types name and ID freely (least preferred; no validation) |
+
+Recommendation: **Employee ID with automatic name lookup** provides the best balance of speed and accuracy for V1.
+
+---
+
+### 4. Signature Requirements
+
+Are on-screen electronic signatures acceptable for internal inventory control at this property?
+
+Each completed transaction automatically records the following audit metadata regardless of signature preference:
+
+- Date and time of submission
+- Device name
+- Logged-in user (if applicable)
+- Employee IDs of both signatories
+- Unique transaction number
+
+If electronic signatures are accepted, this metadata provides a complete audit trail without adding operational complexity.
+
+If handwritten signatures on a printed form remain required by policy, the generated PDF can be printed immediately after submission for ink signatures.
+
+---
+
+### 5. Record Storage
+
+Where should transaction records and generated PDFs be stored?
+
+Options (one or more may apply):
+
+| Option | Description |
+|--------|-------------|
+| Local tablet only | Records stored on the tablet running the application |
+| Local server | Records stored on a shared server on the property network |
+| Network share | PDF folder mapped to a network drive |
+| Local + network backup | Primary local storage with automatic copy to a network location |
+
+The application is designed for local-first storage (SQLite database + local PDF folder). Network backup support can be added in a later release.
+
+---
+
+### 6. Administrative Security
+
+Who should be permitted to modify inventory settings, card types, colors, and employee records?
+
+Options (select one):
+
+| Option | Description |
+|--------|-------------|
+| Administrator PIN | A shared numeric PIN entered at the Admin panel |
+| Supervisor login | A named supervisor account with a password |
+| Windows account | Restrict access based on the Windows user account running the app |
+| Existing application login | Integrate with a future shared authentication module |
+
+Recommendation: **Administrator PIN** is sufficient for V1 and keeps setup simple. A named supervisor login can be added when the shared `core/auth` module is built.
+
+---
+
+### 7. Partial Box Support
+
+Current assumption: cards always move in complete boxes.
+
+- Baccarat: full boxes of 8 decks
+- Single Deck: full boxes of 12 decks
+
+Should partial-box movement remain **disabled** unless specifically enabled by an administrator?
+
+The setting is already included in the Admin panel (`Allow partial boxes`, default: **off**). No code change is required to enable it later — only an admin toggle.
+
+Confirm whether this default is correct for this property.
+
+---
+
+### 8. Deployment
+
+How will the application be deployed?
+
+| Scenario | Description |
+|----------|-------------|
+| Single tablet | One tablet at the card storage station |
+| Multiple tablets | Multiple tablets that must share the same inventory data |
+| Desktop PC | Workstation at a supervisor's desk |
+| Local server + multiple clients | Centralized data with clients on multiple devices |
+
+The V1 design is **local-first on a single device**. Multi-device inventory sharing requires a local server or cloud backend and is planned for a future release. Confirming the deployment scenario ensures the architecture chosen for V1 does not need to be rewritten.
+
+---
+
+### 9. Corrections
+
+When a submitted transaction must be corrected, what is required?
+
+| Requirement | Include in V1? |
+|-------------|---------------|
+| Mandatory explanation / reason | Yes (already in design) |
+| Both Security and Gaming Management signatures again | Yes (already in design) |
+| Supervisor or manager approval before the correction is accepted | TBD |
+| Automatic reference to the original transaction ID | Yes (already in design) |
+
+Original records are **never modified**. All corrections create a new transaction that references the original.
+
+Confirm whether additional supervisor approval (beyond the two signatures already captured) is required before a correction is saved.
+
+---
+
+### 10. Printing
+
+After a transaction is submitted and the PDF is generated, what should happen?
+
+| Option | Description |
+|--------|-------------|
+| Generate PDF only | PDF is saved to disk; no automatic print |
+| Automatic print | PDF is sent to the default printer immediately after submission |
+| Prompt the user | A dialog asks whether to print |
+| Configurable | Admin setting chooses the default behavior; user can override |
+
+Recommendation: **Configurable** — default to PDF-only for V1, with a print prompt available so the workflow can be adjusted per property without a code change.
+
+Confirm whether a network printer is available at the card storage station.
+
+---
+
+### 11. Reporting
+
+What reports are needed in V1?
+
+Proposed report list (confirm which are required at launch):
+
+| Report | Description |
+|--------|-------------|
+| Current inventory balance | Boxes and decks on hand by card type and color |
+| Transaction history | All IN/OUT entries, filterable by date, type, and card type |
+| Daily movement summary | Total boxes and decks moved in and out per day |
+| Weekly summary | Aggregated movement and closing balance per week |
+| Monthly summary | Aggregated movement and closing balance per month |
+| Correction history | All correction entries with references to originals |
+
+Reports not in the above list can be added later without architectural changes.
+
+---
+
+### 12. Retention
+
+How long must transaction records remain accessible in the application?
+
+| Option | Description |
+|--------|-------------|
+| Permanent (no archiving) | All records remain in the active database indefinitely |
+| Manual archive | Admin can archive records older than a chosen date to a separate file |
+| Automatic archive | Records older than a configured threshold are automatically moved to an archive |
+
+Confirm whether a regulatory retention period applies (e.g., state gaming commission requirements).  
+The design supports all three options; the default for V1 will be **permanent retention** unless a specific requirement is confirmed.
+
+---
+
+### 13. Inventory Counts
+
+Should the application support periodic physical inventory counts?
+
+Example use case: a quarterly or monthly physical count where a clerk counts the actual boxes on the shelf, the system compares the count against its recorded balance, any discrepancy is documented with a reason, and a supervisor approves the reconciliation.
+
+This feature is **not** in the V1 scope but the data model can accommodate it. Confirm whether it should be included in V1 or planned for a future release.
+
+---
+
+### 14. Vendors / Packaging Profiles
+
+Should packaging defaults be saved by card manufacturer?
+
+Example vendors: Paulson, Gemaco, Angel, Bee.
+
+A vendor profile would store the manufacturer name alongside the `boxes_per_case` and `decks_per_box` values, allowing the admin to switch between vendor profiles without re-entering packaging numbers each time.
+
+This is a minor admin enhancement. Confirm whether V1 should include named vendor profiles or whether a single configurable packaging setting per card type is sufficient.
+
+---
+
+### 15. Future Integration
+
+Although V1 is a standalone application, should the architecture explicitly anticipate future integration with a broader gaming operations platform (for example, an application named OpsLedger)?
+
+Such a platform might provide:
+
+- Shared employee database across modules
+- Shared audit log
+- Centralized reporting engine
+- Shared authentication
+
+The current design already uses a `core/*` shared-module structure that would support this integration. Confirming the intent here ensures that module boundaries, table naming conventions, and API contracts are designed with the broader platform in mind from the start rather than retrofitted later.
 
 ---
 
