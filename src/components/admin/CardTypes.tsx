@@ -25,7 +25,6 @@ export default function CardTypesAdmin({ cardTypes, onAdd, onUpdate, onToggleAct
     e.preventDefault();
     setError('');
     if (!form.name.trim()) { setError('Name is required.'); return; }
-    if (form.boxesPerCase < 1) { setError('Boxes per case must be at least 1.'); return; }
     if (form.decksPerBox < 1) { setError('Decks per box must be at least 1.'); return; }
     const duplicate = cardTypes.some(
       ct => ct.name.toLowerCase() === form.name.trim().toLowerCase()
